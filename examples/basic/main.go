@@ -22,6 +22,7 @@ func main() {
 		port     = flag.Int("port", 9222, "Chromedp-compatible DevTools browser port")
 		timeout  = flag.Duration("timeout", 90*time.Second, "Request timeout (e.g. 30s, 2m)")
 		remote   = flag.Bool("external", false, "Use external browser (assumes one is already running on the specified port)")
+		machine  = flag.Bool("json", false, "Output JSON")
 	)
 
 	flag.Parse()
@@ -60,16 +61,23 @@ func main() {
 		log.Fatalf("Fatal error logging in: %s", err)
 	}
 
-	fmt.Println("Fetching grades...")
+	if !(*machine) {fmt.Println("Fetching grades...\n")}
 	grades, err := client.GetGrades()
 	if err != nil {
 		log.Fatalf("Fatal error in grades: %s", err)
 	}
-
-	jsonData, err := json.MarshalIndent(grades, "", "  ")
-	if err != nil {
-		log.Fatal(err)
+	if !(*machine){
+		for _, class := range grades {
+			fmt.Printf("%s:\n - %s (%s)\n", class.Class, class.Grade, class.GradeLetter)
+		}
 	}
 
-	fmt.Println(string(jsonData))
+	if (*machine) == true {
+		jsonData, err := json.MarshalIndent(grades, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Println(string(jsonData))
+	}
 }
