@@ -6,6 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/mcMineyC/vx_puppet"
@@ -13,16 +16,16 @@ import (
 
 func main() {
 	ctx := context.Background()
+	const lightpandaPort = 9222
 
 	// CLI flags
 	var (
-		schoolID = flag.String("school", "", "School ID")
-		username = flag.String("user", "", "Username / student ID")
-		password = flag.String("pass", "", "Password")
-		port     = flag.Int("port", 9222, "Chromedp-compatible DevTools browser port")
-		timeout  = flag.Duration("timeout", 90*time.Second, "Request timeout (e.g. 30s, 2m)")
-		remote   = flag.Bool("external", false, "Use external browser (assumes one is already running on the specified port)")
-		machine  = flag.Bool("json", false, "Output JSON")
+		schoolID      = flag.String("school", "", "School ID")
+		username      = flag.String("user", "", "Username / student ID")
+		password      = flag.String("pass", "", "Password")
+		lightpandaURL = flag.String("lightpandaUrl", "", "Lightpanda DevTools WebSocket URL")
+		timeout       = flag.Duration("timeout", 90*time.Second, "Request timeout (e.g. 30s, 2m)")
+		machine       = flag.Bool("json", false, "Output JSON")
 	)
 
 	flag.Parse()
@@ -31,15 +34,37 @@ func main() {
 		log.Fatal("schoolID, username, and password are required (-school, -user, -pass)")
 	}
 
-	// Download Lightpanda automatically
-	if !(*remote) {
+	webSocketURL := *lightpandaURL
+	if webSocketURL != "" {
+		if !strings.Contains(webSocketURL, "://") {
+			webSocketURL = "ws://" + webSocketURL
+		}
+
+		parsedURL, err := url.Parse(webSocketURL)
+		if err != nil || parsedURL.Host == "" {
+			log.Fatalf("invalid -lightpandaUrl %q: expected a host:port or WebSocket URL", *lightpandaURL)
+		}
+		if parsedURL.Scheme != "ws" && parsedURL.Scheme != "wss" && parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			log.Fatalf("invalid -lightpandaUrl scheme %q: expected ws, wss, http, or https", parsedURL.Scheme)
+		}
+		if parsedURL.Path == "" {
+			parsedURL.Path = "/"
+		}
+		webSocketURL = parsedURL.String()
+	}
+
+	if webSocketURL == "" {
+		if runtime.GOOS == "windows" {
+			log.Fatal("the Lightpanda executable is not compiled for Windows; provide -lightpandaUrl to connect to a running instance, or run this program on Linux or macOS")
+		}
+
+		webSocketURL = fmt.Sprintf("ws://127.0.0.1:%d/", lightpandaPort)
 		binaryPath, err := vx_puppet.DownloadLightpanda(ctx, "lightpanda")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		// Start browser
-		browser, err := vx_puppet.StartLightpanda(ctx, binaryPath, *port)
+		browser, err := vx_puppet.StartLightpanda(ctx, binaryPath, lightpandaPort)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -47,7 +72,7 @@ func main() {
 	}
 
 	client, err := vx_puppet.New(vx_puppet.Options{
-		WebSocketURL: fmt.Sprintf("ws://127.0.0.1:%d/devtools/browser", *port),
+		WebSocketURL: webSocketURL,
 		SchoolID:     *schoolID,
 		Timeout:      *timeout,
 	})
@@ -61,12 +86,14 @@ func main() {
 		log.Fatalf("Fatal error logging in: %s", err)
 	}
 
-	if !(*machine) {fmt.Println("Fetching grades...\n")}
+	if !(*machine) {
+		fmt.Println("Fetching grades...\n")
+	}
 	grades, err := client.GetGrades()
 	if err != nil {
 		log.Fatalf("Fatal error in grades: %s", err)
 	}
-	if !(*machine){
+	if !(*machine) {
 		for _, class := range grades {
 			fmt.Printf("%s:\n - %s (%s)\n", class.Class, class.Grade, class.GradeLetter)
 		}

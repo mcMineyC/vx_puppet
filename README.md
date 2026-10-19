@@ -9,6 +9,12 @@ No OAuth, it only requires your standard Veracross login
 - Grade retrieval
 - TODO: Fetch individual assignment grades
 
+## Quick Start
+The examples/basic directory has a great starter program that auto-downloads the lightpanda binary (on linux and mac, only; no windows sorry), starts it, and connects to it. Below is an example execution that connects to a lightpanda Docker container running on the remote machine `192.168.40.167:9222`:
+```
+go run main.go -school <redacted, replace with yours> -user 123456 -pass "MyPassword" -lightpandaUrl "192.168.40.167:9222"
+```
+
 ## Installation
 
 ```bash
@@ -70,4 +76,3 @@ grades, err := client.GetGrades(
   }
 ]
 ```
-

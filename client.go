@@ -35,6 +35,7 @@ func New(opts Options) (*Client, error) {
 	allocatorCtx, _ := chromedp.NewRemoteAllocator(
 		context.Background(),
 		opts.WebSocketURL,
+		chromedp.NoModifyURL,
 	)
 
 	tabCtx, cancel := chromedp.NewContext(
